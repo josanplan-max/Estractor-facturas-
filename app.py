@@ -19,17 +19,14 @@ if uploaded_files:
             for page in pdf.pages:
                 text += page.extract_text() or "\n"
             
-            # 1. Búsqueda flexible de número de factura o ID
-            num_factura = re.search(r'(?:N[°º°]?|Factura)\s*[:.]?\s*([0-9A-Za-z_-]+)', text, re.IGNORECASE)
+            # 1. Búsqueda de número de factura
+            num_factura = re.search(r'N[°º]?\s*[:.]?\s*([0-9A-Za-z_-]+)', text, re.IGNORECASE)
             
-            # 2. Búsqueda de fechas (si existe)
+            # 2. Búsqueda de fecha (si existe)
             fecha = re.search(r'\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b', text)
             
-            # 3. Búsqueda mejorada del Total (busca la palabra total y extrae la cantidad monetaria cercana)
-            total = re.search(r'TOTAL\D*([\d.,]+\s*€?)', text, re.IGNORECASE)
-            if not total:
-                # Plan B por si el total está en otra línea
-                total = re.search(r'([\d.,]+\s*€)\s*$', text, re.MULTILINE | re.IGNORECASE)
+            # 3. Búsqueda robusta de Total (tolera saltos de línea y barras de tablas)
+            total = re.search(r'TOTAL[\s\S]*?([\d.,]+\s*€)', text, re.IGNORECASE)
 
             data.append({
                 "Archivo": pdf_file.name,
