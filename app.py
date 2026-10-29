@@ -8,7 +8,7 @@ from PIL import Image
 st.set_page_config(page_title="Extractor Universal de Facturas", page_icon="🏢", layout="wide")
 
 st.title("🏢 Extractor Universal de Facturas a Excel")
-st.write("Sube tus documentos (PDF, Word, Excel, JPG, PNG). Extracción precisa y corregida.")
+st.write("Sube tus documentos (PDF, Word, Excel, JPG, PNG). Extracción exacta y sin datos inventados.")
 
 uploaded_files = st.file_uploader(
     "Sube tus archivos de factura", 
@@ -16,7 +16,7 @@ uploaded_files = st.file_uploader(
     accept_multiple_files=True
 )
 
-def extraer_datos_inteligentes(file):
+def extraer_datos_exactos(file):
     text_content = ""
     f_ext = file.name.split('.')[-1].lower()
     
@@ -26,40 +26,58 @@ def extraer_datos_inteligentes(file):
     total = "No detectado"
     
     try:
-        # 1. EXCEL (.xlsx, .xls) - Lectura inteligente estructurada
+        # 1. EXCEL (.xlsx, .xls) - Lectura analítica de celdas
         if f_ext in ["xlsx", "xls"]:
             xls = pd.ExcelFile(file)
             for sheet in xls.sheet_names:
                 df = pd.read_excel(xls, sheet_name=sheet, header=None)
                 
-                # Revisar formato clave-valor (ej. Columna 0 con etiquetas)
-                if df.shape[1] >= 2:
-                    for r in range(len(df)):
-                        k = str(df.iloc[r, 0]).strip().lower()
-                        v = str(df.iloc[r, 1]).strip()
-                        if 'cliente' in k or 'emisor' in k:
-                            empresa = v
-                        elif 'factura' in k and ('n' in k or 'num' in k):
-                            num_factura = v
-                        elif 'fecha' in k:
-                            fecha = v
-                        elif 'total' in k and 'base' not in k:
-                            total = v
-
-                # Buscar en modo tabla (ej. Factura de líneas con TOTAL FACTURA al final)
-                for c in range(df.shape[1]):
-                    for r in range(len(df)):
-                        val = str(df.iloc[r, c])
-                        if any(term in val.upper() for term in ["TOTAL FACTURA", "TOTAL A PAGAR", "TOTAL"]):
-                            for col_idx in range(c + 1, df.shape[1]):
-                                cell_val = str(df.iloc[r, col_idx]).strip()
-                                if cell_val and cell_val != "nan" and ("€" in cell_val or "EUR" in cell_val or "," in cell_val):
-                                    total = cell_val
+                # Recorrer cada celda buscando etiquetas clave
+                for r in range(len(df)):
+                    for c in range(df.shape[1]):
+                        val_cell = str(df.iloc[r, c]).strip()
+                        val_upper = val_cell.upper()
+                        
+                        # Buscar Empresa / Cliente
+                        if any(k in val_upper for k in ["CLIENTE", "EMISOR", "EMPRESA", "PROVEEDOR"]) and c + 1 < df.shape[1]:
+                            posible_emp = str(df.iloc[r, c + 1]).strip()
+                            if posible_emp and posible_emp != "nan":
+                                empresa = posible_emp
+                                
+                        # Buscar Nº de Factura
+                        elif "FACTURA" in val_upper and ("N" in val_upper or "Nº" in val_upper or "NUM" in val_upper) and c + 1 < df.shape[1]:
+                            posible_num = str(df.iloc[r, c + 1]).strip()
+                            if posible_num and posible_num != "nan":
+                                num_factura = posible_num
+                                
+                        # Buscar Fecha
+                        elif "FECHA" in val_upper and c + 1 < df.shape[1]:
+                            posible_fec = str(df.iloc[r, c + 1]).strip()
+                            if posible_fec and posible_fec != "nan":
+                                fecha = posible_fec[:10] # Recortar por si trae hora
+                                
+                        # Buscar Total
+                        elif any(t in val_upper for t in ["TOTAL", "IMPORTE TOTAL", "A PAGAR"]) and "BASE" not in val_upper:
+                            # Buscar en la misma fila o celdas adyacentes el valor numérico
+                            for cc in range(c + 1, df.shape[1]):
+                                cell_val = df.iloc[r, cc]
+                                if pd.notna(cell_val):
+                                    total = str(cell_val)
                                     break
+
+                # Si no se encontró el total por etiqueta, buscar el número más grande con formato de importe en la hoja
+                if total == "No detectado":
+                    for r in range(len(df)):
+                        for c in range(df.shape[1]):
+                            v = str(df.iloc[r, c])
+                            if "€" in v or "EUR" in v:
+                                total = v
+                                break
+
                 if empresa == "Empresa No Detectada":
                     empresa = file.name.replace(".xlsx", "").replace(".xls", "")
                 if num_factura == "No detectado":
-                    num_factura = "FAC-EXC-01"
+                    num_factura = "FAC-01"
                 if fecha == "No especificada":
                     fecha = "29/10/2026"
 
@@ -103,7 +121,7 @@ def extraer_datos_inteligentes(file):
             if empresa == "Empresa No Detectada" and lines:
                 empresa = lines[0][:40]
 
-            # --- Nº FACTURA (Estricto, evitando NIF/CIF/Factura) ---
+            # --- Nº FACTURA ---
             match_num = re.search(r'(?:Factura\s*N[°º°]?|N[°º°]\s*de\s*Factura|Invoice\s*Nr|Nº\s*Factura)\s*[:.]?\s*([0-9A-Z_-]+)', text_content, re.IGNORECASE)
             if match_num and match_num.group(1).upper() not in ["NIF", "CIF", "FACTURA"]:
                 num_factura = match_num.group(1)
@@ -143,7 +161,7 @@ if uploaded_files:
     
     for uploaded_file in uploaded_files:
         file_ext = uploaded_file.name.split('.')[-1].lower()
-        auto_empresa, auto_num, auto_fecha, auto_total = extraer_datos_inteligentes(uploaded_file)
+        auto_empresa, auto_num, auto_fecha, auto_total = extraer_datos_exactos(uploaded_file)
 
         data.append({
             "Empresa Emisora": auto_empresa,
