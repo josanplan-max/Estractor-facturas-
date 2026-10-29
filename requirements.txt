@@ -4,4 +4,4 @@ openpyxl
 pypdf
 python-docx
 Pillow
-pytesseract
+xlrd
