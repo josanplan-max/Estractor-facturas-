@@ -18,22 +18,21 @@ uploaded_files = st.file_uploader(
 
 def extraer_texto_seguro(file):
     text_content = ""
-    file_ext = file.name.split('.')[-1].lower()
+    f_ext = file.name.split('.')[-1].lower()
     
     try:
-        # 1. EXCEL (.xlsx, .xls) - Lectura segura de celdas
-        if file_ext in ["xlsx", "xls"]:
+        # 1. EXCEL (.xlsx, .xls)
+        if f_ext in ["xlsx", "xls"]:
             xls = pd.ExcelFile(file)
             for sheet in xls.sheet_names:
                 df_sheet = pd.read_excel(xls, sheet_name=sheet, header=None)
-                # Convertimos toda la matriz de la hoja en texto plano buscando celdas
                 for col in df_sheet.columns:
                     for val in df_sheet[col].dropna():
                         text_content += str(val) + " "
                 text_content += "\n"
 
         # 2. PDF (.pdf)
-        elif file_ext == "pdf":
+        elif f_ext == "pdf":
             reader = PdfReader(file)
             for page in reader.pages:
                 txt = page.extract_text()
@@ -41,7 +40,7 @@ def extraer_texto_seguro(file):
                     text_content += txt + "\n"
 
         # 3. WORD (.docx)
-        elif file_ext == "docx":
+        elif f_ext == "docx":
             doc = Document(file)
             for p in doc.paragraphs:
                 if p.text:
@@ -53,7 +52,7 @@ def extraer_texto_seguro(file):
                         text_content += " | ".join(row_text) + "\n"
 
         # 4. IMÁGENES (JPG, PNG)
-        elif file_ext in ["jpg", "jpeg", "png"]:
+        elif f_ext in ["jpg", "jpeg", "png"]:
             text_content += f"Imagen subida: {file.name} TOTAL 400 € Nº 01"
 
     except Exception as e:
@@ -67,9 +66,9 @@ if uploaded_files:
     for uploaded_file in uploaded_files:
         raw_text = extraer_texto_seguro(uploaded_file)
         fname = uploaded_file.name.lower()
+        file_ext = uploaded_file.name.split('.')[-1].lower()
         
         # EXTRACCIÓN LIMPIA Y FILTRADA
-        # Buscamos números de factura válidos (evitando letras sueltas)
         num_factura = re.search(r'(?:N[°º°]?|Factura|INV|FAC)[\s\S]*?([0-9A-Z_-]{2,10})', raw_text, re.IGNORECASE)
         fecha = re.search(r'\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b', raw_text)
         total = re.search(r'([\d.,]+\s*(?:€|EUR))', raw_text, re.IGNORECASE)
